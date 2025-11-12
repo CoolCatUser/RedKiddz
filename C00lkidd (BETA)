@@ -1,0 +1,119 @@
+-- Still İn Progress i will update it when im free
+local AnimURL = "https://raw.githubusercontent.com/CoolCatUser/Assets-MP/refs/heads/main/C00lkiddAnimations.rbxmx"
+local loadedassets = {}
+local getasset = getcustomasset or getsynasset or function(a) return "rbxasset://"..a end
+
+if not isfolder("C00lkiddPackages") then
+    makefolder("C00lkiddPackages")
+end
+
+local filename = "C00lkiddAnimations.rbxmx"
+local localPath = "C00lkiddPackages/"..filename
+
+if not isfile(localPath) then
+    local ok, data = pcall(function() return game:HttpGet(AnimURL) end)
+    if ok and data then
+        writefile(localPath, data)
+        loadedassets[filename] = getasset(localPath)
+    else
+        error("Failed to download animation file: "..filename)
+    end
+else
+    loadedassets[filename] = getasset(localPath)
+end
+
+local KeyframeSystem = loadstring(
+    game:HttpGet("https://raw.githubusercontent.com/CoolCatUser/KeyframePlayer/main/Transform.lua")
+)()
+
+local animContainer = game:GetObjects(loadedassets[filename])[1]
+animContainer.Parent = workspace
+
+local Keyframes = {}
+for _, obj in ipairs(animContainer:GetDescendants()) do
+    if obj:IsA("KeyframeSequence") then
+        Keyframes[obj.Name] = obj
+    end
+end
+
+local player = game.Players.LocalPlayer
+local char = player.Character or player.CharacterAdded:Wait()
+local humanoid = char:WaitForChild("Humanoid")
+
+for _, child in ipairs(humanoid:GetChildren()) do
+    if child:IsA("Animator") then
+        child:Destroy()
+    end
+end
+
+local animateScript = char:FindFirstChild("Animate")
+if animateScript then
+    animateScript:Destroy()
+end
+
+local walkSpeed = 8
+local runSpeed = 27
+humanoid.WalkSpeed = walkSpeed
+
+local animator = KeyframeSystem.new(humanoid)
+
+local tracks = {}
+for _, name in ipairs({"Idle","Walk","Run"}) do
+    local seq = Keyframes[name]
+    if seq then
+        tracks[name] = animator:LoadAnimation(seq)
+    end
+end
+
+local currentTrack = nil
+local function PlayAnimation(name)
+    if currentTrack == name then return end
+    if currentTrack and tracks[currentTrack] then
+        tracks[currentTrack]:Stop(0.2)
+    end
+    if tracks[name] then
+        tracks[name]:Play(0.2)
+        currentTrack = name
+    end
+end
+
+local isRunning = false
+
+local gui = Instance.new("ScreenGui")
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0,100,0,50)
+toggleBtn.Position = UDim2.new(0,10,0,10)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+toggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
+toggleBtn.Text = "Run"
+toggleBtn.Parent = gui
+
+toggleBtn.MouseButton1Click:Connect(function()
+    if isRunning then
+        humanoid.WalkSpeed = walkSpeed
+        toggleBtn.Text = "Run"
+        isRunning = false
+    else
+        humanoid.WalkSpeed = runSpeed
+        toggleBtn.Text = "Walk"
+        isRunning = true
+    end
+end)
+
+local RunService = game:GetService("RunService")
+RunService.RenderStepped:Connect(function()
+    if humanoid.Health <= 0 then return end
+    local speed = humanoid.WalkSpeed
+    local moveVelocity = humanoid.MoveDirection.Magnitude
+
+    if moveVelocity < 0.1 then
+        PlayAnimation("Idle")
+    elseif speed >= runSpeed then
+        PlayAnimation("Run")
+    else
+        PlayAnimation("Walk")
+    end
+end)
